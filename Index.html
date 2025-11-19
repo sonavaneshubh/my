@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>IPL Auction Predictor — Full</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 18px; }
+    h1 { margin-bottom: 6px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: middle; }
+    th { background:#f2f2f2; }
+    select, input[type="number"], button { margin:6px 6px 6px 0; padding:8px; }
+    .recommendation { color: green; font-weight: 700; margin-top:10px; }
+    .small { font-size:0.9em; color:#555; }
+  </style>
+</head>
+<body>
+  <h1 style="text-align: center;">IPL Auction Predictor Model</h1>
+  <select id="sellTeam" style="text-align: center;">
+    <option value="">-- Select Team --</option>
+    <option value="mi">MI</option>
+    <option value="rcb">RCB</option>
+    <option value="gt">GT</option>
+    <option value="kkr">KKR</option>
+    <option value="lsg">LSG</option>
+    <option value="pbks">PBKS</option>
+    <option value="rr">RR</option>
+    <option value="csk">CSK</option>
+    <option value="dc">DC</option>
+    <option value="srh">SRH</option>
+  </select>
+<select id="sellPlayer"></select>
+
+  <input type="number" id="sellPrice" placeholder="Sold Price (₹ Cr)" step="0.1" style="width:150px;">
+  <button onclick="sellPlayer()">Sell Player</button>
+
+  <div id="message" class="recommendation">-</div>
+
+<script>
+/* ======= PLAYERS DATA (exact spellings & ratings you provided) =======
+   Category values: "Batsman", "Wicket-Keeper", "All-Rounder", "Bowler"
+*/
+const players = {
+  /* BATSMEN - Indian */
+  "Rohit sharma": { rating: 10, category: "Batsman" },
+  "Virat kolhi": { rating: 10, category: "Batsman" },
+  "Shubman gill": { rating: 9.5, category: "Batsman" },
+  "Yashashwi jaiswal": { rating: 9.5, category: "Batsman" },
+  "Ruturaj gaikwad": { rating: 8, category: "Batsman" },
+  "Naman dhir": { rating: 8, category: "Batsman" },
+  "Suryakumar yadav": { rating: 10, category: "Batsman" },
+  "Ayush mhatre": { rating: 8, category: "Batsman" },
+  "Karun nair": { rating: 7, category: "Batsman" },
+  "Vaibhav suryavanshi": { rating: 8, category: "Batsman" },
+  "Rajat patidar": { rating: 8, category: "Batsman" },
+  "Devdatt padikkal": { rating: 7.5, category: "Batsman" },
+  "Nehal wadhera": { rating: 8, category: "Batsman" },
+  "Ravichandran smaran": { rating: 6, category: "Batsman" },
+  "Ajinkya rahane": { rating: 7, category: "Batsman" },
+  "Rinku singh": { rating: 8.5, category: "Batsman" },
+  "Angkrish raghuwanshi": { rating: 6.5, category: "Batsman" },
+  "Manish pandey": { rating: 7, category: "Batsman" },
+  "Pyla Avinash": { rating: 6, category: "Batsman" },
+  "Shashank singh": { rating: 8.5, category: "Batsman" },
+  "Rahul Tripathi": { rating: 7, category: "Batsman" },
+  "Prithwi Shaw": { rating: 6, category: "Batsman" },
+  "Shreyas Iyer": { rating: 9.5, category: "Batsman" },
+
+  /* BATSMEN - Overseas */
+  "Devon Conway": { rating: 8, category: "Batsman" },
+  "Shimron Hetmyer": { rating: 8, category: "Batsman" },
+  "David Miller": { rating: 7.5, category: "Batsman" },
+  "Travis Head": { rating: 9.5, category: "Batsman" },
+  "Harry Brook": { rating: 8, category: "Batsman" },
+  "Rowman Powell": { rating: 7.5, category: "Batsman" },
+  "Faf duplesis": { rating: 7.5, category: "Batsman" },
+  "Matthew Breetzke": { rating: 6.5, category: "Batsman" },
+  "Lhuan Dre Pretorious": { rating: 6, category: "Batsman" },
+  "Kane Williamson": { rating: 7, category: "Batsman" },
+  "Rilee Rossouw": { rating: 7, category: "Batsman" },
+  "Kusal Mendis": { rating: 7.5, category: "Batsman" },
+  "Kamindu Mendis": { rating: 6.5, category: "Batsman" },
+  "Pathum Nissanka": { rating: 6.5, category: "Batsman" },
+  "Ibrahim Jadran": { rating: 7, category: "Batsman" },
+  "Sherfane Rutherford": { rating: 8.5, category: "Batsman" },
+  "Johnson Charles": { rating: 7, category: "Batsman" },
+  "Will Young": { rating: 7.5, category: "Batsman" },
+  "Jacob Bethell": { rating: 6.5, category: "Batsman" },
+  "Jake Fraser MCgurk": { rating: 8, category: "Batsman" },
+  "David Warner": { rating: 7.5, category: "Batsman" },
+
+  /* WICKET KEEPERS - Indian */
+  "Ms dhoni": { rating: 10, category: "Wicket-Keeper" },
+  "Vansh Bedi": { rating: 6.5, category: "Wicket-Keeper" },
+  "Urvil Patel": { rating: 7.5, category: "Wicket-Keeper" },
+  "KL Rahul": { rating: 9, category: "Wicket-Keeper" },
+  "Abhishek Porel": { rating: 8, category: "Wicket-Keeper" },
+  "Kumar Kushagra": { rating: 6.5, category: "Wicket-Keeper" },
+  "Jitesh Sharma": { rating: 8.5, category: "Wicket-Keeper" },
+  "Luvnith Sisoda": { rating: 6, category: "Wicket-Keeper" },
+  "Robin Minz": { rating: 6.5, category: "Wicket-Keeper" },
+  "Prabhusimran Singh": { rating: 8, category: "Wicket-Keeper" },
+  "Vishnu Vinod": { rating: 7.5, category: "Wicket-Keeper" },
+  "Sanju Samson": { rating: 9.5, category: "Wicket-Keeper" },
+  "Dhruv Jurel": { rating: 8.5, category: "Wicket-Keeper" },
+  "Ishan Kishan": { rating: 8, category: "Wicket-Keeper" },
+  "Rishabh pant": { rating: 8.5, category: "Wicket-Keeper" },
+  "Anuj Rawat": { rating: 7.5, category: "Wicket-Keeper" },
+
+  /* WICKET KEEPERS - Overseas */
+  "Jos buttler": { rating: 10, category: "Wicket-Keeper" },
+  "Tristan Stubbs": { rating: 8, category: "Wicket-Keeper" },
+  "Phillip Salt": { rating: 8.5, category: "Wicket-Keeper" },
+  "Ryan Rickelton": { rating: 8, category: "Wicket-Keeper" },
+  "Quinton Decock": { rating: 9, category: "Wicket-Keeper" },
+  "Rahamandullah Gurbaz": { rating: 8, category: "Wicket-Keeper" },
+  "Josh English": { rating: 8, category: "Wicket-Keeper" },
+  "Ben Duckett": { rating: 8, category: "Wicket-Keeper" },
+  "Henirich Klassen": { rating: 9, category: "Wicket-Keeper" },
+  "Nicholas Pooran": { rating: 9.5, category: "Wicket-Keeper" },
+  "Jhonny Bairstow": { rating: 9, category: "Wicket-Keeper" },
+  "Liton Das": { rating: 8, category: "Wicket-Keeper" },
+  "Tom Latham": { rating: 8, category: "Wicket-Keeper" },
+  "Ollie Pope": { rating: 8, category: "Wicket-Keeper" },
+  "Sam Billings": { rating: 7.5, category: "Wicket-Keeper" },
+
+  /* ALL-ROUNDERS - Indian */
+  "Abhishek sharma": { rating: 10, category: "All-Rounder" },
+  "Ravindra jadeja": { rating: 9, category: "All-Rounder" },
+  "Tilak varma": { rating: 9.5, category: "All-Rounder" },
+  "Riyan parag": { rating: 8.5, category: "All-Rounder" },
+  "Aniket varma": { rating: 7.5, category: "All-Rounder" },
+  "Hardik Pandya": { rating: 9.5, category: "All-Rounder" },
+  "Shivam Dubey": { rating: 8.5, category: "All-Rounder" },
+  "Anshul Kamboj": { rating: 7.5, category: "All-Rounder" },
+  "Axar Patel": { rating: 9, category: "All-Rounder" },
+  "Nitish Kumar Reddy": { rating: 8.5, category: "All-Rounder" },
+  "Ashutosh Sharma": { rating: 8, category: "All-Rounder" },
+  "Nitish Rana": { rating: 8, category: "All-Rounder" },
+  "Venketesh Iyer": { rating: 8, category: "All-Rounder" },
+  "Washigton Sundar": { rating: 8.5, category: "All-Rounder" },
+  "Shahrukh Khan": { rating: 7.5, category: "All-Rounder" },
+  "Shardul Thakur": { rating: 8, category: "All-Rounder" },
+  "Ramandeep Singh": { rating: 7, category: "All-Rounder" },
+  "Priyansh Arya": { rating: 8, category: "All-Rounder" },
+  "Vijay Shankar": { rating: 7, category: "All-Rounder" },
+  "Musheer Khan": { rating: 6.5, category: "All-Rounder" },
+  "Abdul Samad": { rating: 7, category: "All-Rounder" },
+  "Ayush Badoni": { rating: 7, category: "All-Rounder" },
+  "Krunal Pandya": { rating: 8, category: "All-Rounder" },
+  "Deepak Hooda": { rating: 6.5, category: "All-Rounder" },
+  "Anukul Roy": { rating: 6, category: "All-Rounder" },
+  "Raj Angad Bawa": { rating: 6, category: "All-Rounder" },
+
+  /* ALL-ROUNDERS - Overseas */
+  "Dewald brevis": { rating: 9.5, category: "All-Rounder" },
+  "Sam curren": { rating: 8, category: "All-Rounder" },
+  "Rashid Khan": { rating: 10, category: "All-Rounder" },
+  "Aiden Markram": { rating: 8.5, category: "All-Rounder" },
+  "Glenn Phillips": { rating: 8, category: "All-Rounder" },
+  "Sunil Narine": { rating: 9.5, category: "All-Rounder" },
+  "Andre Russel": { rating: 9, category: "All-Rounder" },
+  "Marco Jansen": { rating: 8.5, category: "All-Rounder" },
+  "Marcus Stoinis": { rating: 9.5, category: "All-Rounder" },
+  "Pat Cummins": { rating: 9.5, category: "All-Rounder" },
+  "Mitchell Santner": { rating: 10, category: "All-Rounder" },
+  "Mohhamad Nabi": { rating: 8, category: "All-Rounder" },
+  "Gulabdin Naib": { rating: 7, category: "All-Rounder" },
+  "Ben Stokes": { rating: 8.5, category: "All-Rounder" },
+  "Tim David": { rating: 9, category: "All-Rounder" },
+  "Romario Shepherd": { rating: 8.5, category: "All-Rounder" },
+  "Will Jacks": { rating: 8.5, category: "All-Rounder" },
+  "Glenn Maxwell": { rating: 8, category: "All-Rounder" },
+  "Corbin Bosch": { rating: 7, category: "All-Rounder" },
+  "Gerald Coetzee": { rating: 7.5, category: "All-Rounder" },
+  "Sikandar Raza": { rating: 7, category: "All-Rounder" },
+  "Dasun Shanaka": { rating: 7, category: "All-Rounder" },
+  "Shakib Al Hasan": { rating: 7.5, category: "All-Rounder" },
+  "Cameron Green": { rating: 8, category: "All-Rounder" },
+  "Liam Livingstone": { rating: 8.5, category: "All-Rounder" },
+  "Michel Bracewell": { rating: 7.5, category: "All-Rounder" },
+  "Rachin Ravindra": { rating: 7, category: "All-Rounder" },
+  "Kyale Mayers": { rating: 7.5, category: "All-Rounder" },
+
+  /* BOWLERS - Indian */
+  "Jaspreet bumrah": { rating: 10, category: "Bowler" },
+  "Mohammad Shami": { rating: 8.5, category: "Bowler" },
+};
+
+/* populate sellPlayer dropdown from players object */
+function populatePlayerDropdown() {
+  const sel = document.getElementById('sellPlayer');
+  sel.innerHTML = '<option value="">-- Select Player --</option>';
+  // iterate categories in desired order
+  const orderCats = ["Batsman","Wicket-Keeper","All-Rounder","Bowler"];
+  orderCats.forEach(cat => {
+    // create a disabled group label
+    const optGroup = document.createElement('option');
+    optGroup.disabled = true;
+    optGroup.textContent = `--- ${cat.toUpperCase()} ---`;
+    sel.appendChild(optGroup);
+    // append players in this category
+    Object.keys(players).forEach(name => {
+      if (players[name].category === cat) {
+        // encode value as Name|rating|category for parsing
+        const val = `${name}|${players[name].rating}|${cat}`;
+        const o = document.createElement('option');
+        o.value = val;
+        o.textContent = `${name} — ${players[name].rating}`;
+        sel.appendChild(o);
+      }
+    });
+  });
+}
+
+/* helper: find first empty slot ID for a team and category */
+function findSlotForCategory(team, category) {
+  if (category === "Wicket-Keeper") {
+    const id = team + 'WK';
+    return document.getElementById(id);
+  }
+  if (category === "Batsman") {
+    const ids = [team+'Bat1', team+'Bat2'];
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (!el.dataset.rating) return el;
+    }
+    return null;
+  }
+  if (category === "Bowler") {
+    const ids = [team+'Bowl1', team+'Bowl2', team+'Bowl3', team+'Bowl4'];
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (!el.dataset.rating) return el;
+    }
+    return null;
+  }
+  if (category === "All-Rounder") {
+    const ids = [team+'AR1', team+'AR2'];
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (!el.dataset.rating) return el;
+    }
+    return null;
+  }
+  return null;
+}
+
+/* update totals & gaps by scanning cells' data-rating */
+function updateTeams() {
+  const teams = ['mi','rcb','gt','kkr','lsg','pbks','rr','csk','dc','srh'];
+  teams.forEach(team => {
+    // compute points
+    const slotIds = [
+      team+'WK',
+      team+'Bat1', team+'Bat2',
+      team+'Bowl1', team+'Bowl2', team+'Bowl3', team+'Bowl4',
+      team+'AR1', team+'AR2'
+    ];
+    let total = 0;
+    const counts = { "Wicket-Keeper":0, "Batsman":0, "Bowler":0, "All-Rounder":0 };
+    slotIds.forEach(id => {
+      const el = document.getElementById(id);
+      const r = parseFloat(el.dataset.rating) || 0;
+      if (r) {
+        total += r;
+        // infer category by which slot
+        if (id.includes('WK')) counts["Wicket-Keeper"]++;
+        else if (id.includes('Bat')) counts["Batsman"]++;
+        else if (id.includes('Bowl')) counts["Bowler"]++;
+        else if (id.includes('AR')) counts["All-Rounder"]++;
+      }
+    });
+    document.getElementById(team + 'Points').innerText = total.toFixed(1);
+
+    // gaps: define desired counts
+    const desired = { "Wicket-Keeper":1, "Batsman":2, "Bowler":4, "All-Rounder":2 };
+    const gapsList = [];
+    Object.keys(desired).forEach(cat => {
+      if (counts[cat] < desired[cat]) gapsList.push(cat + ': Low');
+    });
+    document.getElementById(team + 'Gaps').innerText = gapsList.length ? gapsList.join(', ') : 'Balanced';
+  });
+}
+
+/* Sell a player to selected team */
+function sellPlayer() {
+  const team = document.getElementById('sellTeam').value;
+  const playerVal = document.getElementById('sellPlayer').value;
+  const price = parseFloat(document.getElementById('sellPrice').value);
+  const messageEl = document.getElementById('message');
+
+  if (!team) { alert('Select a team'); return; }
+  if (!playerVal) { alert('Select a player'); return; }
+  if (isNaN(price)) { alert('Enter sold price (number)'); return; }
+
+  // parse playerVal
+  const [name, ratingStr, category] = playerVal.split('|');
+  const rating = parseFloat(ratingStr);
+
+  const budgetEl = document.getElementById(team + 'Budget');
+  let budget = parseFloat(budgetEl.innerText || '0');
+
+  if (price > budget) { alert('Insufficient budget for this team'); return; }
+
+  // find slot
+  const slotEl = findSlotForCategory(team, category);
+  if (!slotEl) {
+    alert(`No empty slot available in category ${category} for team ${team.toUpperCase()}.`);
+    return;
+  }
+
+  // place player (save name and rating in data-rating)
+  slotEl.textContent = name;
+  slotEl.dataset.rating = rating;
+
+  // deduct budget
+  budget = budget - price;
+  budgetEl.innerText = budget.toFixed(1);
+
+  // update totals & gaps
+  updateTeams();
+
+  messageEl.innerText = `${name} assigned to ${team.toUpperCase()} (${category}) — Rating ${rating} — Budget now ₹${budget.toFixed(1)} Cr.`;
+  // clear input
+  document.getElementById('sellPrice').value = '';
+  document.getElementById('sellPlayer').selectedIndex = 0;
+}
+
+/* initialize */
+(function init() {
+  populatePlayerDropdown();
+  updateTeams();
+})();
+</script>
+  <table id="teamsTable">
+    <tr>
+      <th>Team</th>
+      <th>Budget Left (₹ Cr)</th>
+
+      <th>WK (1)</th>
+      <th>Batsman 1</th>
+      <th>Batsman 2</th>
+      <th>Bowler 1</th>
+      <th>Bowler 2</th>
+      <th>Bowler 3</th>
+      <th>Bowler 4</th>
+      <th>All-Rounder 1</th>
+      <th>All-Rounder 2</th>
+      <th>Total Points</th>
+      <th>Category Gaps</th>
+    </tr>
+
+    <!-- Teams -->
+    <tr>
+      <td>MI</td>
+      <td id="miBudget">100</td>
+
+      <td id="miWK" data-rating="">-</td>
+      <td id="miBat1" data-rating="">-</td>
+      <td id="miBat2" data-rating="">-</td>
+      <td id="miBowl1" data-rating="">-</td>
+      <td id="miBowl2" data-rating="">-</td>
+      <td id="miBowl3" data-rating="">-</td>
+      <td id="miBowl4" data-rating="">-</td>
+      <td id="miAR1" data-rating="">-</td>
+      <td id="miAR2" data-rating="">-</td>
+      <td id="miPoints">0.0</td>
+      <td id="miGaps">Balanced</td>
+    </tr>
+
+    <tr>
+      <td>RCB</td>
+      <td id="rcbBudget">100</td>
+
+      <td id="rcbWK" data-rating="">-</td>
+      <td id="rcbBat1" data-rating="">-</td>
+      <td id="rcbBat2" data-rating="">-</td>
+      <td id="rcbBowl1" data-rating="">-</td>
+      <td id="rcbBowl2" data-rating="">-</td>
+      <td id="rcbBowl3" data-rating="">-</td>
+      <td id="rcbBowl4" data-rating="">-</td>
+      <td id="rcbAR1" data-rating="">-</td>
+      <td id="rcbAR2" data-rating="">-</td>
+      <td id="rcbPoints">0.0</td>
+      <td id="rcbGaps">Balanced</td>
+    </tr>
+
+    <tr>
+      <td>GT</td>
+      <td id="gtBudget">100</td>
+
+      <td id="gtWK" data-rating="">-</td>
+      <td id="gtBat1" data-rating="">-</td>
+      <td id="gtBat2" data-rating="">-</td>
+      <td id="gtBowl1" data-rating="">-</td>
+      <td id="gtBowl2" data-rating="">-</td>
+      <td id="gtBowl3" data-rating="">-</td>
+      <td id="gtBowl4" data-rating="">-</td>
+      <td id="gtAR1" data-rating="">-</td>
+      <td id="gtAR2" data-rating="">-</td>
+      <td id="gtPoints">0.0</td>
+      <td id="gtGaps">Balanced</td>
+    </tr>
+
+    <tr>
+      <td>KKR</td>
+      <td id="kkrBudget">100</td>
+
+      <td id="kkrWK" data-rating="">-</td>
+      <td id="kkrBat1" data-rating="">-</td>
+      <td id="kkrBat2" data-rating="">-</td>
+      <td id="kkrBowl1" data-rating="">-</td>
+      <td id="kkrBowl2" data-rating="">-</td>
+      <td id="kkrBowl3" data-rating="">-</td>
+      <td id="kkrBowl4" data-rating="">-</td>
+      <td id="kkrAR1" data-rating="">-</td>
+      <td id="kkrAR2" data-rating="">-</td>
+      <td id="kkrPoints">0.0</td>
+      <td id="kkrGaps">Balanced</td>
+    </tr>
+
+    <tr>
+      <td>LSG</td>
+      <td id="lsgBudget">100</td>
+
+      <td id="lsgWK" data-rating="">-</td>
+      <td id="lsgBat1" data-rating="">-</td>
+      <td id="lsgBat2" data-rating="">-</td>
+      <td id="lsgBowl1" data-rating="">-</td>
+      <td id="lsgBowl2" data-rating="">-</td>
+      <td id="lsgBowl3" data-rating="">-</td>
+      <td id="lsgBowl4" data-rating="">-</td>
+      <td id="lsgAR1" data-rating="">-</td>
+      <td id="lsgAR2" data-rating="">-</td>
+      <td id="lsgPoints">0.0</td>
+      <td id="lsgGaps">Balanced</td>
+    </tr>
+
+    <tr>
+      <td>PBKS</td>
+      <td id="pbksBudget">100</td>
+
+      <td id="pbksWK" data-rating="">-</td>
+      <td id="pbksBat1" data-rating="">-</td>
+      <td id="pbksBat2" data-rating="">-</td>
+      <td id="pbksBowl1" data-rating="">-</td>
+      <td id="pbksBowl2" data-rating="">-</td>
+      <td id="pbksBowl3" data-rating="">-</td>
+      <td id="pbksBowl4" data-rating="">-</td>
+      <td id="pbksAR1" data-rating="">-</td>
+      <td id="pbksAR2" data-rating="">-</td>
+      <td id="pbksPoints">0.0</td>
+      <td id="pbksGaps">Balanced</td>
+    </tr>
+
+    <tr>
+      <td>RR</td>
+      <td id="rrBudget">100</td>
+
+      <td id="rrWK" data-rating="">-</td>
+      <td id="rrBat1" data-rating="">-</td>
+      <td id="rrBat2" data-rating="">-</td>
+      <td id="rrBowl1" data-rating="">-</td>
+      <td id="rrBowl2" data-rating="">-</td>
+      <td id="rrBowl3" data-rating="">-</td>
+      <td id="rrBowl4" data-rating="">-</td>
+      <td id="rrAR1" data-rating="">-</td>
+      <td id="rrAR2" data-rating="">-</td>
+      <td id="rrPoints">0.0</td>
+      <td id="rrGaps">Balanced</td>
+    </tr>
+
+    <tr>
+      <td>CSK</td>
+      <td id="cskBudget">100</td>
+
+      <td id="cskWK" data-rating="">-</td>
+      <td id="cskBat1" data-rating="">-</td>
+      <td id="cskBat2" data-rating="">-</td>
+      <td id="cskBowl1" data-rating="">-</td>
+      <td id="cskBowl2" data-rating="">-</td>
+      <td id="cskBowl3" data-rating="">-</td>
+      <td id="cskBowl4" data-rating="">-</td>
+      <td id="cskAR1" data-rating="">-</td>
+      <td id="cskAR2" data-rating="">-</td>
+      <td id="cskPoints">0.0</td>
+      <td id="cskGaps">Balanced</td>
+    </tr>
+
+    <tr>
+      <td>DC</td>
+      <td id="dcBudget">100</td>
+
+      <td id="dcWK" data-rating="">-</td>
+      <td id="dcBat1" data-rating="">-</td>
+      <td id="dcBat2" data-rating="">-</td>
+      <td id="dcBowl1" data-rating="">-</td>
+      <td id="dcBowl2" data-rating="">-</td>
+      <td id="dcBowl3" data-rating="">-</td>
+      <td id="dcBowl4" data-rating="">-</td>
+      <td id="dcAR1" data-rating="">-</td>
+      <td id="dcAR2" data-rating="">-</td>
+      <td id="dcPoints">0.0</td>
+      <td id="dcGaps">Balanced</td>
+    </tr>
+
+    <tr>
+      <td>SRH</td>
+      <td id="srhBudget">100</td>
+
+      <td id="srhWK" data-rating="">-</td>
+      <td id="srhBat1" data-rating="">-</td>
+      <td id="srhBat2" data-rating="">-</td>
+      <td id="srhBowl1" data-rating="">-</td>
+      <td id="srhBowl2" data-rating="">-</td>
+      <td id="srhBowl3" data-rating="">-</td>
+      <td id="srhBowl4" data-rating="">-</td>
+      <td id="srhAR1" data-rating="">-</td>
+      <td id="srhAR2" data-rating="">-</td>
+      <td id="srhPoints">0.0</td>
+      <td id="srhGaps">Balanced</td>
+    </tr>
+
+  </table>
+
+  <button onclick="updateTeams()">Update Team Points & Gaps</button>
+
+  
+
+  
+</body>
+</html>
